@@ -36,16 +36,16 @@ const char* loge_name(loge_t* loge, const char* name) {
     return loge->name;
 }
 
-// reverse find a character from specified position
+// reversely find a character from specified position
 static const char* strrchr_from(const char* str, int from, char c) {
-    assert(str);
+    assert(str && from >= 0);
     while(from > 0 && str[from] != c) {
         from--;
     }
     if(from > 0) {
         return str + from;
     } else {
-        return str[from] == c ? str : NULL;
+        return str[0] == c ? str : NULL;
     }
 }
 
@@ -67,11 +67,11 @@ static const char* shorten_path(const char* file) {
     return (last_slash && last_slash != file) ? (last_slash + 1) : file;
 }
 
-// from specified position, find the last leading-byte of a utf-8 encoded character,
+// from specified position, reversely find the last leading-byte of an utf-8 character,
 // returns its index in buf, or returns 0 if not find.
 static int rfind_utf8_leading_byte_index(char* buf, int from) {
     while(from >= 0) {
-        unsigned char c = buf[0];
+        unsigned char c = buf[from];
         // utf-8 leading bytes: 0-, 110-, 1110-, 11110-
         if(c>>7==0 || c>>5==6 || c>>4==14 || c>>3==30) {
             return from;
@@ -97,7 +97,7 @@ static char* write_str(char* buf, const char* buf_end, const char* str) {
         int n = strlen(str) + 1;
         n = LOGE_MIN(n, buf_end - buf);
         memcpy(buf, str, n);
-        n = rfind_utf8_leading_byte_index(buf, n);
+        n = rfind_utf8_leading_byte_index(buf, n - 1);
         buf[n] = '\0';
         return buf + n + 1;
     }
