@@ -123,6 +123,9 @@ unsigned int loge_item(loge_t* loge, void* buf, unsigned int bufsize,
     item->tid = (int) gettid();
     item->line = line;
 
+    item->extra_offset = extra - (char*)item;
+    item->flags = 0;
+
     // fill in strings and it's offsets.
     // the length of first three strings (name/tags/file) can't exceed 255,
     // to make sure the last offset (msg_offset) is valid uint8_t value.
@@ -141,6 +144,8 @@ unsigned int loge_item(loge_t* loge, void* buf, unsigned int bufsize,
     // msg and msg_offset
     item->msg_offset = p - extra;
     p = write_str(p, extra_end, msg);
+
+    item->msg_len = p - (extra + item->msg_offset) - 1;
 
     return (p - (char*)buf);
 }

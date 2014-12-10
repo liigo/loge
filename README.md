@@ -1,4 +1,4 @@
 loge
 ====
 
-`loge` is a logging protocol focus on encoding log items.
+`loge` is a logging protocol focus on serializing log items.
