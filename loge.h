@@ -6,7 +6,7 @@
 // https://github.com/liigo/loge
 
 #ifdef __cplusplus
-extern "C"	{
+extern "C" {
 #endif
 
 #include <stdlib.h>
@@ -53,6 +53,13 @@ void loge_init(loge_t* loge, const char* name);
 unsigned int
 loge_item(loge_t* loge, void* buf, unsigned int bufsize,
           int level, const char* tags, const char* msg, const char* file, int line);
+
+// the binary version of `loge_item`, `msg` is a binary data instead of a text.
+// returns 0 if the msg's size is too long.
+// see `loge_item` for more details.
+unsigned int
+loge_item_bin(loge_t* loge, void* buf, unsigned int bufsize, int level, const char* tags,
+              const void* msg, unsigned int msglen, const char* file, int line);
 
 // To enable (if enabled==1) or disable (if enabled==0) the logging.
 void loge_enable(loge_t* loge, int enabled);

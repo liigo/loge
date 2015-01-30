@@ -9,6 +9,10 @@
     #include <unistd.h>
     #include <sys/syscall.h>
     #define gettid() syscall(SYS_gettid)
+#else
+    #include <Windows.h>
+    #define gettid() (int)GetCurrentThreadId()
+    #define getpid() (int)GetCurrentProcessId()
 #endif
 
 #define LOGE_MIN(a,b) ((a)<(b)?(a):(b))
@@ -84,7 +88,7 @@ static int rfind_utf8_leading_byte_index(char* buf, int from) {
 // write str to buf, maybe truncates str if there is no enough space between buf and buf_end.
 // buf and buf_end must be non-NULL, str can be NULL.
 // returns the next available buf to write another str.
-// we ensure that str wrote to buf end with '\0' even it was truncated.
+// we ensure that str copied to buf ends with '\0', even if it was truncated.
 // we ensure that utf-8 encoded str will not be truncated inside a character.
 static char* write_str(char* buf, const char* buf_end, const char* str) {
     assert(buf <= buf_end);
@@ -94,17 +98,41 @@ static char* write_str(char* buf, const char* buf_end, const char* str) {
         buf[0] = '\0';
         return buf + 1;
     } else {
-        int n = strlen(str) + 1;
-        n = LOGE_MIN(n, buf_end - buf);
+        unsigned int n = strlen(str) + 1;
+        n = LOGE_MIN(n, (unsigned int)(buf_end - buf));
         memcpy(buf, str, n);
-        n = rfind_utf8_leading_byte_index(buf, n - 1);
+        n = (unsigned int) rfind_utf8_leading_byte_index(buf, (int)(n - 1));
         buf[n] = '\0';
         return buf + n + 1;
     }
 }
 
-unsigned int loge_item(loge_t* loge, void* buf, unsigned int bufsize,
-                       int level, const char* tags, const char* msg, const char* file, int line) {
+// similar to `write_str`, but write binary data here.
+// we ensure that data copied to buf ends with an extra '\0',
+// even if it was truncated, so that it can be printed as a normal text.
+// returns NULL if the data was truncated! truncating binary data is a serious error.
+// see `write_str` for more details.
+static char* write_bin(char* buf, const char* buf_end, const void* data, unsigned int datasize) {
+    assert(buf <= buf_end);
+    if(buf == buf_end)
+        return (char*)buf_end;
+    if(data == NULL) {
+        buf[0] = '\0';
+        return buf + 1;
+    } else {
+        unsigned int n = datasize + 1;
+        n = LOGE_MIN(n, (unsigned int)(buf_end - buf));
+        memcpy(buf, data, n); // maybe read a byte more here, without harmful (at least I think so).
+        buf[n - 1] = '\0';
+        if(n < datasize + 1)
+            return NULL; // indicates the data is truncated
+        return buf + n;
+    }
+}
+
+// if msglen==-1, `msg` will be treated as a text.
+unsigned int loge_item_bin(loge_t* loge, void* buf, unsigned int bufsize, int level, const char* tags,
+                           const void* msg, unsigned int msglen, const char* file, int line) {
     loge_item_t* item = (loge_item_t*) buf;
     char* extra = (char*)buf + sizeof(loge_item_t);
     const char* extra_end = (char*)buf + LOGE_MIN(bufsize, LOGE_MAXBUF);
@@ -143,9 +171,27 @@ unsigned int loge_item(loge_t* loge, void* buf, unsigned int bufsize,
     p = write_str(p, extra + 255, shorten_path(file));
     // msg and msg_offset
     item->msg_offset = p - extra;
-    p = write_str(p, extra_end, msg);
+    if(msglen == (unsigned int)-1) {
+        p = write_str(p, extra_end, (const char*)msg);
+    } else {
+        p = write_bin(p, extra_end, msg, msglen);
+        if(p == NULL)
+            return 0; // truncating binary data is a serious error
+    }
 
     item->msg_len = p - (extra + item->msg_offset) - 1;
 
     return (p - (char*)buf);
+}
+
+#if defined(_MSC_VER)
+    #define LOGE_INLINE /*__inline*/
+#else
+    #define LOGE_INLINE inline
+#endif
+
+LOGE_INLINE
+unsigned int loge_item(loge_t* loge, void* buf, unsigned int bufsize,
+                       int level, const char* tags, const char* msg, const char* file, int line) {
+    return loge_item_bin(loge, buf, bufsize, level, tags, msg, -1, file, line);
 }
